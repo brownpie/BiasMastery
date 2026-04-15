@@ -626,6 +626,10 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
 .cmd-item-cat { margin-left: auto; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--t-4); }
 .cmd-empty { padding: 24px 14px; text-align: center; color: var(--t-4); font-size: 12px; }
 
+.cmd-item.selected {
+  outline: 1px solid var(--accent-border);
+}
+
 /* ==========================================
    DETAIL PANEL
    ========================================== */
@@ -770,6 +774,46 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   gap: 8px;
 }
 
+.detail-related-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-related-item {
+  border: 1px solid var(--border-1);
+  background: var(--surface-1);
+  color: var(--t-1);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+.detail-note {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius);
+  color: var(--t-1);
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detail-note:focus {
+  outline: 1px solid var(--accent-border);
+  border-color: var(--accent-border);
+}
+
+.detail-note-meta {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--t-4);
+}
+
 .detail-btn {
   padding: 7px 14px;
   border-radius: var(--radius);
@@ -820,6 +864,133 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
    ========================================== */
 .playbook-view {
   padding: 24px 28px 48px;
+}
+
+.mastery-view {
+  padding: 24px 28px 48px;
+}
+
+.mastery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.mastery-header h2 {
+  font-size: 16px;
+  color: var(--t-0);
+}
+
+.mastery-header p {
+  margin-top: 4px;
+  color: var(--t-3);
+  font-size: 12px;
+  max-width: 460px;
+}
+
+.mastery-stats {
+  display: flex;
+  gap: 8px;
+}
+
+.mastery-stat {
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  background: var(--surface-0);
+  min-width: 76px;
+}
+
+.mastery-stat-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--t-4);
+  letter-spacing: 0.05em;
+}
+
+.mastery-stat-value {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--t-0);
+  font-weight: 600;
+}
+
+.daily-bias {
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  background: var(--surface-0);
+}
+
+.daily-bias-title {
+  font-size: 11px;
+  color: var(--t-4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.daily-bias-name {
+  font-size: 16px;
+  color: var(--t-0);
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.daily-bias-copy {
+  margin-top: 6px;
+  color: var(--t-2);
+  font-size: 12px;
+}
+
+.quiz-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.quiz-panel {
+  margin-top: 14px;
+  border: 1px solid var(--border-0);
+  background: var(--surface-0);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.quiz-meta {
+  font-size: 11px;
+  color: var(--t-4);
+}
+
+.quiz-question {
+  margin-top: 6px;
+  font-size: 18px;
+  color: var(--t-0);
+  font-weight: 650;
+}
+
+.quiz-answer {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+}
+
+.quiz-answer p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--t-1);
+}
+
+.quiz-grade {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .playbook-intro {
@@ -958,6 +1129,16 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   }
 
   .playbook-view { padding: 20px 16px 40px; }
+  .mastery-view { padding: 20px 16px 40px; }
+
+  .mastery-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mastery-stats {
+    width: 100%;
+  }
 
   .playbook-tabs { overflow-x: auto; }
 

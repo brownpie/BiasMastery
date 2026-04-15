@@ -130,32 +130,191 @@ const STAGES = {
 /* ==========================================
    STATE
    ========================================== */
-let learned = JSON.parse(localStorage.getItem('bm_learned') || '[]');
-let explored = JSON.parse(localStorage.getItem('bm_explored') || '[]');
+const STORAGE_KEYS = {
+  learned: 'bm_learned',
+  explored: 'bm_explored',
+  review: 'bm_review',
+  notes: 'bm_notes',
+  streak: 'bm_streak',
+};
+
+const CATEGORY_OVERRIDES = {
+  "Miller's Law": 'memory',
+  'Unit Bias': 'memory',
+  'Flow State': 'memory',
+  'Law of Similarity': 'memory',
+  'Law of Prägnanz': 'memory',
+  'Familiarity Bias': 'memory',
+  'Skeuomorphism': 'memory',
+  'Investment Loops': 'memory',
+  'IKEA Effect': 'memory',
+  'Aesthetic-Usability Effect': 'memory',
+  'Visual Anchors': 'memory',
+};
+
+let learned = JSON.parse(localStorage.getItem(STORAGE_KEYS.learned) || '[]');
+let explored = JSON.parse(localStorage.getItem(STORAGE_KEYS.explored) || '[]');
+let reviewState = JSON.parse(localStorage.getItem(STORAGE_KEYS.review) || '{}');
+let notes = JSON.parse(localStorage.getItem(STORAGE_KEYS.notes) || '{}');
+let streakState = JSON.parse(localStorage.getItem(STORAGE_KEYS.streak) || '{"count":0,"lastDate":""}');
+
 let currentFilter = 'all';
 let currentView = 'grid';
+let currentCmdResults = [];
+let cmdSelectedIndex = -1;
+let currentDetailBias = null;
+let noteSaveTimer = null;
+let quizState = {
+  queue: [],
+  mode: 'due',
+  index: 0,
+  current: null,
+};
 
-function saveLearned() { localStorage.setItem('bm_learned', JSON.stringify(learned)); }
-function saveExplored() { localStorage.setItem('bm_explored', JSON.stringify(explored)); }
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function saveLearned() { localStorage.setItem(STORAGE_KEYS.learned, JSON.stringify(learned)); }
+function saveExplored() { localStorage.setItem(STORAGE_KEYS.explored, JSON.stringify(explored)); }
+function saveReviewState() { localStorage.setItem(STORAGE_KEYS.review, JSON.stringify(reviewState)); }
+function saveNotes() { localStorage.setItem(STORAGE_KEYS.notes, JSON.stringify(notes)); }
+function saveStreak() { localStorage.setItem(STORAGE_KEYS.streak, JSON.stringify(streakState)); }
+
+function getDateKey(ts = Date.now()) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function getDayStart(ts = Date.now()) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function getCategory(bias) {
+  return CATEGORY_OVERRIDES[bias.name] || bias.category;
+}
+
+function escapeHTML(str) {
+  return String(str)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function getBiasByName(name) {
+  return BIASES.find(b => b.name === name);
+}
+
+function dueToday(name) {
+  const item = reviewState[name];
+  if (!item || !item.dueAt) return false;
+  return item.dueAt <= Date.now();
+}
+
+function getDueBiases() {
+  return learned
+    .map(name => getBiasByName(name))
+    .filter(Boolean)
+    .filter(b => dueToday(b.name))
+    .sort((a, b) => (reviewState[a.name]?.dueAt || 0) - (reviewState[b.name]?.dueAt || 0));
+}
+
+function getRetentionPct() {
+  if (!learned.length) return 0;
+  const retained = learned.filter(name => (reviewState[name]?.intervalDays || 0) >= 7).length;
+  return Math.round((retained / learned.length) * 100);
+}
+
+function getStreakCount() {
+  const dueDoneToday = Object.values(reviewState).some(v => v?.lastReviewedDate === getDateKey());
+  if (!dueDoneToday) return streakState.count || 0;
+  return Math.max(streakState.count || 0, 1);
+}
 
 function markExplored(name) {
   if (!explored.includes(name)) {
     explored.push(name);
     saveExplored();
-    updateProgress();
+  }
+}
+
+function ensureReviewSeed(name) {
+  if (!reviewState[name]) {
+    reviewState[name] = {
+      intervalDays: 1,
+      dueAt: getDayStart() + DAY_MS,
+      lastReviewedDate: '',
+    };
+    saveReviewState();
+  }
+}
+
+function scheduleReview(name, grade) {
+  const prev = reviewState[name] || { intervalDays: 1, dueAt: Date.now() };
+  let next = prev.intervalDays || 1;
+
+  if (grade === 'again') next = 1;
+  if (grade === 'hard') next = Math.max(1, Math.ceil(next * 1.3));
+  if (grade === 'good') next = Math.max(2, Math.ceil(next * 2.1));
+  if (grade === 'easy') next = Math.max(4, Math.ceil(next * 3.2));
+
+  const dueAt = getDayStart() + (next * DAY_MS);
+  reviewState[name] = {
+    intervalDays: next,
+    dueAt,
+    lastReviewedDate: getDateKey(),
+  };
+  saveReviewState();
+
+  // Track a simple day streak for completed reviews.
+  const today = getDateKey();
+  const yesterday = getDateKey(Date.now() - DAY_MS);
+  if (streakState.lastDate === today) return;
+  if (streakState.lastDate === yesterday) {
+    streakState.count = (streakState.count || 0) + 1;
+  } else {
+    streakState.count = 1;
+  }
+  streakState.lastDate = today;
+  saveStreak();
+}
+
+function syncLearnedUI(name) {
+  const isLearned = learned.includes(name);
+  const card = document.querySelector(`.bias-card[data-name="${CSS.escape(name)}"]`);
+  if (card) card.classList.toggle('learned', isLearned);
+
+  if (currentDetailBias?.name === name) {
+    const btn = document.getElementById('learnBtn');
+    if (btn) {
+      btn.textContent = isLearned ? '✓ Marked as Learned' : '✓ Mark as Learned';
+      btn.classList.toggle('is-learned', isLearned);
+    }
   }
 }
 
 function toggleLearned(name) {
-  if (learned.includes(name)) {
+  const wasLearned = learned.includes(name);
+  if (wasLearned) {
     learned = learned.filter(n => n !== name);
+    delete reviewState[name];
   } else {
     learned.push(name);
+    ensureReviewSeed(name);
   }
   saveLearned();
+  saveReviewState();
   updateProgress();
-  renderGrid();
   updateCounts();
+
+  if (currentFilter === 'learned' || currentFilter === 'unlearned') {
+    renderGrid();
+  } else {
+    syncLearnedUI(name);
+  }
+
+  if (currentFilter === 'mastery') renderMasteryView();
 }
 
 /* ==========================================
@@ -163,7 +322,7 @@ function toggleLearned(name) {
    ========================================== */
 function updateProgress() {
   const total = BIASES.length;
-  const count = explored.length;
+  const count = learned.length;
   const pct = (count / total) * 100;
   const bar = document.getElementById('progressBar');
   if (bar) bar.style.width = `${pct}%`;
@@ -173,16 +332,15 @@ function updateProgress() {
 
 function updateCounts() {
   document.getElementById('countAll').textContent = BIASES.length;
-  document.getElementById('countFilter').textContent = BIASES.filter(b=>b.category==='filter').length;
-  document.getElementById('countMeaning').textContent = BIASES.filter(b=>b.category==='meaning').length;
-  document.getElementById('countTime').textContent = BIASES.filter(b=>b.category==='time').length;
-  document.getElementById('countMemory').textContent = BIASES.filter(b=>b.category==='memory').length;
-  document.getElementById('countStar').textContent = BIASES.filter(b=>b.star).length;
+  document.getElementById('countFilter').textContent = BIASES.filter(b => getCategory(b) === 'filter').length;
+  document.getElementById('countMeaning').textContent = BIASES.filter(b => getCategory(b) === 'meaning').length;
+  document.getElementById('countTime').textContent = BIASES.filter(b => getCategory(b) === 'time').length;
+  document.getElementById('countMemory').textContent = BIASES.filter(b => getCategory(b) === 'memory').length;
+  document.getElementById('countStar').textContent = BIASES.filter(b => b.star).length;
   document.getElementById('countLearned').textContent = learned.length;
   document.getElementById('countUnlearned').textContent = BIASES.length - learned.length;
+  document.getElementById('countDue').textContent = getDueBiases().length;
 }
-
-
 
 /* ==========================================
    RENDER GRID
@@ -191,7 +349,9 @@ function getFiltered() {
   if (currentFilter === 'star') return BIASES.filter(b => b.star);
   if (currentFilter === 'learned') return BIASES.filter(b => learned.includes(b.name));
   if (currentFilter === 'unlearned') return BIASES.filter(b => !learned.includes(b.name));
-  if (currentFilter !== 'all') return BIASES.filter(b => b.category === currentFilter);
+  if (['filter', 'meaning', 'time', 'memory'].includes(currentFilter)) {
+    return BIASES.filter(b => getCategory(b) === currentFilter);
+  }
   return BIASES;
 }
 
@@ -211,70 +371,110 @@ function renderGrid() {
 
   grid.innerHTML = list.map((b, i) => {
     const isLearned = learned.includes(b.name);
+    const category = getCategory(b);
     return `
-    <div class="bias-card ${isLearned ? 'learned' : ''}" data-cat="${b.category}" data-name="${b.name}" style="animation-delay:${Math.min(i * 0.025, 0.6)}s">
-      <div class="card-emoji">${b.emoji}</div>
+    <div class="bias-card ${isLearned ? 'learned' : ''}" data-cat="${escapeHTML(category)}" data-name="${escapeHTML(b.name)}" style="animation-delay:${Math.min(i * 0.025, 0.6)}s">
+      <div class="card-emoji">${escapeHTML(b.emoji)}</div>
       <div class="card-info">
         <div class="card-name-row">
-          <span class="card-name">${b.name}</span>
+          <span class="card-name">${escapeHTML(b.name)}</span>
           ${b.star ? '<span class="card-star">⭐</span>' : ''}
         </div>
-        <p class="card-oneliner">${b.oneliner}</p>
-        <span class="card-tag">${b.category}</span>
+        <p class="card-oneliner">${escapeHTML(b.oneliner)}</p>
+        <span class="card-tag">${escapeHTML(category)}</span>
       </div>
     </div>`;
   }).join('');
 
-  // Attach click handlers
   grid.querySelectorAll('.bias-card').forEach(card => {
     card.addEventListener('click', () => {
       const name = card.dataset.name;
-      const bias = BIASES.find(b => b.name === name);
+      const bias = getBiasByName(name);
       if (bias) openDetail(bias);
     });
   });
 
-  // Update topbar
   const titles = {
-    all:'All Biases', filter:'Filter Stage', meaning:'Meaning Stage',
-    time:'Time Stage', memory:'Memory Stage', star:'Must-Know Biases',
-    learned:'Learned', unlearned:'Not Yet Learned'
+    all: 'All Biases',
+    filter: 'Filter Stage',
+    meaning: 'Meaning Stage',
+    time: 'Time Stage',
+    memory: 'Memory Stage',
+    star: 'Must-Know Biases',
+    learned: 'Learned',
+    unlearned: 'Not Yet Learned',
   };
   document.getElementById('topbarTitle').textContent = titles[currentFilter] || 'All Biases';
-  document.getElementById('topbarCount').textContent = `${list.length} principle${list.length!==1?'s':''}`;
+  document.getElementById('topbarCount').textContent = `${list.length} principle${list.length !== 1 ? 's' : ''}`;
+}
+
+function getRelatedBiases(bias, max = 3) {
+  const sourceWords = new Set((`${bias.name} ${bias.oneliner}`).toLowerCase().split(/[^a-z0-9]+/g).filter(Boolean));
+  const scored = BIASES
+    .filter(b => b.name !== bias.name)
+    .map(candidate => {
+      let score = 0;
+      if (getCategory(candidate) === getCategory(bias)) score += 3;
+      if (candidate.star) score += 1;
+      const words = (`${candidate.name} ${candidate.oneliner}`).toLowerCase().split(/[^a-z0-9]+/g).filter(Boolean);
+      words.forEach(w => {
+        if (sourceWords.has(w)) score += 0.3;
+      });
+      return { candidate, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, max)
+    .map(x => x.candidate);
+  return scored;
 }
 
 /* ==========================================
    DETAIL PANEL
    ========================================== */
 function openDetail(bias) {
+  currentDetailBias = bias;
   markExplored(bias.name);
-  const stage = STAGES[bias.category];
+  const stage = STAGES[getCategory(bias)];
   const isLearned = learned.includes(bias.name);
+  const related = getRelatedBiases(bias);
+  const note = notes[bias.name] || '';
 
   const content = document.getElementById('detailContent');
   content.innerHTML = `
     <div class="detail-stage-bar" style="background:${stage.color}"></div>
-    <div class="detail-emoji">${bias.emoji}</div>
-    <h2 class="detail-name">${bias.name}</h2>
-    <span class="detail-category cat-${bias.category}">${stage.label} — ${stage.question}</span>
+    <div class="detail-emoji">${escapeHTML(bias.emoji)}</div>
+    <h2 class="detail-name">${escapeHTML(bias.name)}</h2>
+    <span class="detail-category">${escapeHTML(stage.label)} — ${escapeHTML(stage.question)}</span>
 
     <div class="detail-section">
       <div class="detail-section-title">📝 What It Means</div>
-      <p class="detail-text">${bias.oneliner}</p>
+      <p class="detail-text">${escapeHTML(bias.oneliner)}</p>
     </div>
 
     <div class="detail-section">
       <div class="detail-section-title">⚡ Daily Cheat Code</div>
-      <div class="detail-cheat">${bias.cheat}</div>
+      <div class="detail-cheat">${escapeHTML(bias.cheat)}</div>
     </div>
 
     <div class="detail-section">
       <div class="detail-section-title">🧭 Decision Stage</div>
       <div class="detail-stage-card">
-        <div class="detail-stage-name" style="color:${stage.color}">${stage.label} — ${stage.question}</div>
-        <p class="detail-stage-desc">${stage.desc}</p>
+        <div class="detail-stage-name" style="color:${stage.color}">${escapeHTML(stage.label)} — ${escapeHTML(stage.question)}</div>
+        <p class="detail-stage-desc">${escapeHTML(stage.desc)}</p>
       </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">🔗 Related Biases</div>
+      <div class="detail-related-list">
+        ${related.map(r => `<button class="detail-related-item" data-related="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">🧠 Personal Note</div>
+      <textarea class="detail-note" id="detailNote" placeholder="Write one real example from your own life or work..."></textarea>
+      <div class="detail-note-meta">Notes are stored locally on this browser.</div>
     </div>
 
     <div class="detail-actions">
@@ -287,26 +487,40 @@ function openDetail(bias) {
     </div>
   `;
 
-  // Learn button
+  const noteEl = document.getElementById('detailNote');
+  noteEl.value = note;
+
   document.getElementById('learnBtn').addEventListener('click', (e) => {
     e.stopPropagation();
     toggleLearned(bias.name);
-    const btn = document.getElementById('learnBtn');
-    const nowLearned = learned.includes(bias.name);
-    btn.textContent = nowLearned ? '✓ Marked as Learned' : '✓ Mark as Learned';
-    btn.classList.toggle('is-learned', nowLearned);
   });
 
-  // Next button
   document.getElementById('nextBtn').addEventListener('click', (e) => {
     e.stopPropagation();
     const currentList = getFiltered();
+    if (!currentList.length) return;
     const idx = currentList.findIndex(b => b.name === bias.name);
-    const nextBias = currentList[(idx + 1) % currentList.length];
+    const nextBias = currentList[(idx + 1 + currentList.length) % currentList.length];
     openDetail(nextBias);
   });
 
-  // Show panel
+  content.querySelectorAll('.detail-related-item').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const next = getBiasByName(btn.dataset.related);
+      if (next) openDetail(next);
+    });
+  });
+
+  noteEl.addEventListener('input', () => {
+    if (noteSaveTimer) clearTimeout(noteSaveTimer);
+    noteSaveTimer = setTimeout(() => {
+      notes[bias.name] = noteEl.value.trim();
+      if (!notes[bias.name]) delete notes[bias.name];
+      saveNotes();
+    }, 220);
+  });
+
   document.getElementById('detailOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -319,6 +533,13 @@ function closeDetail() {
 /* ==========================================
    COMMAND PALETTE (Ctrl+K)
    ========================================== */
+function getCmdSuggestions() {
+  const due = getDueBiases().slice(0, 4);
+  const recent = [...explored].reverse().slice(0, 4).map(getBiasByName).filter(Boolean);
+  const merged = [...due, ...recent].filter((b, i, arr) => arr.findIndex(x => x.name === b.name) === i);
+  return merged.slice(0, 8);
+}
+
 function openCmd() {
   const overlay = document.getElementById('cmdOverlay');
   overlay.classList.add('open');
@@ -330,45 +551,174 @@ function openCmd() {
 
 function closeCmd() {
   document.getElementById('cmdOverlay').classList.remove('open');
+  currentCmdResults = [];
+  cmdSelectedIndex = -1;
+}
+
+function activateCmdSelection(index) {
+  const results = document.querySelectorAll('#cmdResults .cmd-item');
+  results.forEach(item => item.classList.remove('selected'));
+  if (!results.length) return;
+  cmdSelectedIndex = Math.max(0, Math.min(index, results.length - 1));
+  const selected = results[cmdSelectedIndex];
+  selected.classList.add('selected');
+  selected.scrollIntoView({ block: 'nearest' });
 }
 
 function renderCmdResults(query) {
   const el = document.getElementById('cmdResults');
   const q = query.toLowerCase().trim();
 
-  if (!q) {
-    el.innerHTML = '<div class="cmd-empty">Start typing to search 106 biases...</div>';
+  currentCmdResults = q
+    ? BIASES.filter(b =>
+      b.name.toLowerCase().includes(q) ||
+      b.oneliner.toLowerCase().includes(q) ||
+      b.cheat.toLowerCase().includes(q) ||
+      getCategory(b).includes(q)
+    ).slice(0, 8)
+    : getCmdSuggestions();
+
+  if (!currentCmdResults.length) {
+    el.innerHTML = q
+      ? `<div class="cmd-empty">No results for "${escapeHTML(query)}"</div>`
+      : '<div class="cmd-empty">No recent activity yet. Try searching by bias name.</div>';
+    cmdSelectedIndex = -1;
     return;
   }
 
-  const results = BIASES.filter(b =>
-    b.name.toLowerCase().includes(q) ||
-    b.oneliner.toLowerCase().includes(q) ||
-    b.cheat.toLowerCase().includes(q) ||
-    b.category.includes(q)
-  ).slice(0, 8);
-
-  if (!results.length) {
-    el.innerHTML = `<div class="cmd-empty">No results for "${query}"</div>`;
-    return;
-  }
-
-  el.innerHTML = results.map(b => `
-    <div class="cmd-item" data-name="${b.name}">
-      <span class="cmd-item-emoji">${b.emoji}</span>
-      <span class="cmd-item-name">${b.name}</span>
-      <span class="cmd-item-desc">— ${b.oneliner}</span>
-      <span class="cmd-item-cat">${b.category}</span>
+  el.innerHTML = currentCmdResults.map(b => `
+    <div class="cmd-item" data-name="${escapeHTML(b.name)}">
+      <span class="cmd-item-emoji">${escapeHTML(b.emoji)}</span>
+      <span class="cmd-item-name">${escapeHTML(b.name)}</span>
+      <span class="cmd-item-desc">— ${escapeHTML(b.oneliner)}</span>
+      <span class="cmd-item-cat">${escapeHTML(getCategory(b))}</span>
     </div>
   `).join('');
 
+  cmdSelectedIndex = 0;
+  activateCmdSelection(cmdSelectedIndex);
+
   el.querySelectorAll('.cmd-item').forEach(item => {
+    item.addEventListener('mouseenter', () => {
+      const idx = currentCmdResults.findIndex(b => b.name === item.dataset.name);
+      activateCmdSelection(idx);
+    });
+
     item.addEventListener('click', () => {
-      const bias = BIASES.find(b => b.name === item.dataset.name);
+      const bias = getBiasByName(item.dataset.name);
       closeCmd();
       if (bias) openDetail(bias);
     });
   });
+}
+
+/* ==========================================
+   MASTERY LAB
+   ========================================== */
+function getDailyBias() {
+  const dayIndex = Math.floor(getDayStart() / DAY_MS);
+  return BIASES[dayIndex % BIASES.length];
+}
+
+function renderMasteryView() {
+  const due = getDueBiases();
+  const daily = getDailyBias();
+
+  document.getElementById('masteryDue').textContent = due.length;
+  document.getElementById('masteryStreak').textContent = `${getStreakCount()}d`;
+  document.getElementById('masteryRetention').textContent = `${getRetentionPct()}%`;
+
+  const dailyEl = document.getElementById('dailyBiasCard');
+  dailyEl.innerHTML = `
+    <div class="daily-bias-title">Daily Bias</div>
+    <div class="daily-bias-name">${escapeHTML(daily.emoji)} ${escapeHTML(daily.name)}</div>
+    <p class="daily-bias-copy">${escapeHTML(daily.oneliner)}</p>
+    <div class="quiz-controls">
+      <button class="detail-btn detail-btn-next" id="openDailyBiasBtn">Open Detail</button>
+    </div>
+  `;
+  document.getElementById('openDailyBiasBtn').addEventListener('click', () => openDetail(daily));
+}
+
+function startQuiz(mode) {
+  const due = getDueBiases();
+  const randomPool = BIASES.slice().sort(() => Math.random() - 0.5).slice(0, 12);
+  const queue = mode === 'due' ? due : randomPool;
+
+  quizState = {
+    mode,
+    queue,
+    index: 0,
+    current: queue[0] || null,
+  };
+
+  const panel = document.getElementById('quizPanel');
+  panel.style.display = '';
+
+  if (!quizState.current) {
+    document.getElementById('quizMeta').textContent = mode === 'due'
+      ? 'No due reviews right now. Great job.'
+      : 'No quiz cards available.';
+    document.getElementById('quizQuestion').textContent = 'Come back tomorrow or run a random drill.';
+    document.getElementById('quizRevealBtn').style.display = 'none';
+    document.getElementById('quizAnswer').style.display = 'none';
+    document.getElementById('quizGrade').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('quizRevealBtn').style.display = '';
+  renderQuizCard();
+}
+
+function renderQuizCard() {
+  const card = quizState.current;
+  const answer = document.getElementById('quizAnswer');
+  const grade = document.getElementById('quizGrade');
+  document.getElementById('quizMeta').textContent = `${quizState.mode === 'due' ? 'Due Review' : 'Random Drill'} • ${quizState.index + 1}/${quizState.queue.length}`;
+  document.getElementById('quizQuestion').textContent = card ? `${card.emoji} ${card.name}` : 'Done';
+  answer.style.display = 'none';
+  answer.innerHTML = '';
+  grade.style.display = 'none';
+}
+
+function revealQuizAnswer() {
+  const card = quizState.current;
+  if (!card) return;
+  const answer = document.getElementById('quizAnswer');
+  answer.style.display = 'block';
+  answer.innerHTML = `
+    <p><strong>What it means:</strong> ${escapeHTML(card.oneliner)}</p>
+    <p><strong>Cheat code:</strong> ${escapeHTML(card.cheat)}</p>
+  `;
+  document.getElementById('quizGrade').style.display = 'flex';
+}
+
+function gradeQuizCard(grade) {
+  const card = quizState.current;
+  if (!card) return;
+  if (!learned.includes(card.name)) {
+    learned.push(card.name);
+    saveLearned();
+  }
+  scheduleReview(card.name, grade);
+  updateProgress();
+  updateCounts();
+
+  quizState.index += 1;
+  quizState.current = quizState.queue[quizState.index] || null;
+
+  if (!quizState.current) {
+    document.getElementById('quizMeta').textContent = 'Session complete';
+    document.getElementById('quizQuestion').textContent = 'Nice work. You completed this review set.';
+    document.getElementById('quizRevealBtn').style.display = 'none';
+    document.getElementById('quizAnswer').style.display = 'none';
+    document.getElementById('quizGrade').style.display = 'none';
+    renderMasteryView();
+    return;
+  }
+
+  renderQuizCard();
+  renderMasteryView();
 }
 
 /* ==========================================
@@ -500,6 +850,7 @@ function renderPlaybook() {
 function showPlaybookView() {
   document.getElementById('biasGrid').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('masteryView').style.display = 'none';
   document.getElementById('playbookView').style.display = '';
   document.getElementById('topbarTitle').textContent = 'Practical Application';
   document.getElementById('topbarCount').textContent = '4 role-based playbooks';
@@ -507,6 +858,20 @@ function showPlaybookView() {
 
 function hidePlaybookView() {
   document.getElementById('playbookView').style.display = 'none';
+}
+
+function showMasteryView() {
+  document.getElementById('biasGrid').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('playbookView').style.display = 'none';
+  document.getElementById('masteryView').style.display = '';
+  document.getElementById('topbarTitle').textContent = 'Mastery Lab';
+  document.getElementById('topbarCount').textContent = `${getDueBiases().length} due now`;
+  renderMasteryView();
+}
+
+function hideMasteryView() {
+  document.getElementById('masteryView').style.display = 'none';
 }
 
 /* ==========================================
@@ -529,8 +894,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (currentFilter === 'playbook') {
         showPlaybookView();
+      } else if (currentFilter === 'mastery') {
+        hidePlaybookView();
+        showMasteryView();
       } else {
         hidePlaybookView();
+        hideMasteryView();
         renderGrid();
       }
       // Close mobile sidebar
@@ -553,7 +922,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Detail panel close
   document.getElementById('detailClose').addEventListener('click', closeDetail);
   document.getElementById('detailOverlay').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('detailOverlay') || e.target === document.querySelector('.detail-overlay.open::before')) {
+    if (!document.getElementById('detailPanel').contains(e.target)) {
       closeDetail();
     }
   });
@@ -563,8 +932,38 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cmdInput').addEventListener('input', (e) => {
     renderCmdResults(e.target.value);
   });
+
+  document.getElementById('cmdInput').addEventListener('keydown', (e) => {
+    if (!currentCmdResults.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activateCmdSelection(cmdSelectedIndex + 1);
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activateCmdSelection(cmdSelectedIndex - 1);
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const selected = currentCmdResults[Math.max(0, cmdSelectedIndex)] || currentCmdResults[0];
+      if (!selected) return;
+      closeCmd();
+      openDetail(selected);
+    }
+  });
+
   document.getElementById('cmdOverlay').addEventListener('click', (e) => {
     if (e.target === document.getElementById('cmdOverlay')) closeCmd();
+  });
+
+  // Mastery controls
+  document.getElementById('startDueQuizBtn').addEventListener('click', () => startQuiz('due'));
+  document.getElementById('startRandomQuizBtn').addEventListener('click', () => startQuiz('random'));
+  document.getElementById('quizRevealBtn').addEventListener('click', revealQuizAnswer);
+  document.getElementById('quizGrade').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-score]');
+    if (!btn) return;
+    gradeQuizCard(btn.dataset.score);
   });
 
   // Random bias (Variable Reward!)
@@ -600,4 +999,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('main').addEventListener('click', () => {
     document.getElementById('sidebar').classList.remove('open');
   });
+
+  renderMasteryView();
 });
