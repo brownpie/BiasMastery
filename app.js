@@ -121,10 +121,10 @@ const BIASES = [
    STAGE META
    ========================================== */
 const STAGES = {
-  filter:  { label:"🙈 Filter", color:"var(--c-filter)", question:"What do I notice?", desc:"The brain aggressively filters information, keeping only what seems relevant. Users miss important things constantly." },
-  meaning: { label:"🔮 Meaning", color:"var(--c-meaning)", question:"What does it mean?", desc:"The brain fills gaps with assumptions, social cues, and stories to decide trust and value." },
-  time:    { label:"⏰ Time", color:"var(--c-time)", question:"Should I act now?", desc:"Even when users understand, they must decide to act now, later, or never. Effort, loss, and momentum dominate." },
-  memory:  { label:"💾 Memory", color:"var(--c-memory)", question:"What will I remember?", desc:"The brain selectively stores fragments. What's remembered shapes whether users return or forget you." },
+  filter:  { label:"Filter", color:"var(--c-filter)", question:"What do I notice?", desc:"The brain aggressively filters information, keeping only what seems relevant. Users miss important things constantly." },
+  meaning: { label:"Meaning", color:"var(--c-meaning)", question:"What does it mean?", desc:"The brain fills gaps with assumptions, social cues, and stories to decide trust and value." },
+  time:    { label:"Time", color:"var(--c-time)", question:"Should I act now?", desc:"Even when users understand, they must decide to act now, later, or never. Effort, loss, and momentum dominate." },
+  memory:  { label:"Memory", color:"var(--c-memory)", question:"What will I remember?", desc:"The brain selectively stores fragments. What's remembered shapes whether users return or forget you." },
 };
 
 /* ==========================================
@@ -447,32 +447,31 @@ function openDetail(bias) {
     <span class="detail-category">${escapeHTML(stage.label)} — ${escapeHTML(stage.question)}</span>
 
     <div class="detail-section">
-      <div class="detail-section-title">📝 What It Means</div>
+      <div class="detail-section-title">What It Means</div>
       <p class="detail-text">${escapeHTML(bias.oneliner)}</p>
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">⚡ Daily Cheat Code</div>
+      <div class="detail-section-title">Daily Cheat Code</div>
       <div class="detail-cheat">${escapeHTML(bias.cheat)}</div>
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">🧭 Decision Stage</div>
+      <div class="detail-section-title">Decision Stage</div>
       <div class="detail-stage-card">
-        <div class="detail-stage-name" style="color:${stage.color}">${escapeHTML(stage.label)} — ${escapeHTML(stage.question)}</div>
         <p class="detail-stage-desc">${escapeHTML(stage.desc)}</p>
       </div>
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">🔗 Related Biases</div>
+      <div class="detail-section-title">Related Biases</div>
       <div class="detail-related-list">
         ${related.map(r => `<button class="detail-related-item" data-related="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button>`).join('')}
       </div>
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">🧠 Personal Note</div>
+      <div class="detail-section-title">Personal Note</div>
       <textarea class="detail-note" id="detailNote" placeholder="Write one real example from your own life or work..."></textarea>
       <div class="detail-note-meta">Notes are stored locally on this browser.</div>
     </div>
