@@ -444,7 +444,6 @@ function openDetail(bias) {
     <div class="detail-stage-bar" style="background:${stage.color}"></div>
     <div class="detail-emoji">${escapeHTML(bias.emoji)}</div>
     <h2 class="detail-name">${escapeHTML(bias.name)}</h2>
-    <span class="detail-category">${escapeHTML(stage.label)} — ${escapeHTML(stage.question)}</span>
 
     <div class="detail-section">
       <div class="detail-section-title">What It Means</div>
@@ -457,7 +456,7 @@ function openDetail(bias) {
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">Decision Stage</div>
+      <div class="detail-section-title">Stage: ${escapeHTML(stage.label)} — ${escapeHTML(stage.question)}</div>
       <div class="detail-stage-card">
         <p class="detail-stage-desc">${escapeHTML(stage.desc)}</p>
       </div>
