@@ -57,7 +57,8 @@
    RESET
    ========================================== */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-html { font-size:14px; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+html { font-size:14px; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; color-scheme:dark; }
+h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
 body {
   font-family: var(--font);
   background: var(--bg-0);
@@ -65,8 +66,11 @@ body {
   line-height: 1.55;
   overflow: hidden;
   height: 100vh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-button { font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; font-size:inherit; }
+button { font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; font-size:inherit; text-align:left; touch-action:manipulation; -webkit-tap-highlight-color:rgba(255,255,255,0.05); }
+.skip-link { position:absolute; top:-40px; left:0; background:var(--accent); color:#fff; padding:8px 12px; font-size:12px; font-weight:600; border-radius:0 0 var(--radius) 0; z-index:300; transition:top var(--fast) var(--ease); }
+.skip-link:focus-visible { top:0; outline:none; box-shadow:0 0 0 2px var(--accent-border); }
 ::selection { background:rgba(139,123,247,0.25); color:#fff; }
 
 /* Scrollbar */
@@ -168,6 +172,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   padding: 4px 8px;
   scrollbar-width: thin;
   scrollbar-color: var(--surface-2) transparent;
+  overscroll-behavior: contain;
 }
 
 .nav-group-label {
@@ -319,6 +324,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   background: var(--bg-0);
   scrollbar-width: thin;
   scrollbar-color: var(--surface-2) transparent;
+  overscroll-behavior: contain;
 }
 
 /* ---- Topbar ---- */
@@ -433,6 +439,10 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   align-items: flex-start;
   position: relative;
   animation: cardIn 0.2s var(--ease) both;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 80px;
+  width: 100%;
+  text-align: left;
 }
 
 @keyframes cardIn {
@@ -550,6 +560,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   align-items: flex-start;
   justify-content: center;
   padding-top: 18vh;
+  overscroll-behavior: contain;
 }
 
 .cmd-overlay.open {
@@ -590,6 +601,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   font-family: var(--font);
   color: var(--t-1);
 }
+.cmd-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-border); border-radius: 3px; }
 
 .cmd-input::placeholder { color: var(--t-4); }
 
@@ -617,6 +629,8 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   padding: 8px 14px;
   cursor: pointer;
   transition: background 0.08s;
+  width: 100%;
+  text-align: left;
 }
 
 .cmd-item:hover, .cmd-item.selected { background: var(--surface-2); }
@@ -667,6 +681,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   scrollbar-color: var(--surface-2) transparent;
   animation: panelIn 0.2s var(--ease);
   z-index: 1;
+  overscroll-behavior: contain;
 }
 
 @keyframes panelIn {
@@ -804,7 +819,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   line-height: 1.5;
 }
 
-.detail-note:focus {
+.detail-note:focus-visible {
   outline: 1px solid var(--accent-border);
   border-color: var(--accent-border);
 }
@@ -820,7 +835,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   border-radius: var(--radius);
   font-size: 12px;
   font-weight: 550;
-  transition: all var(--fast) var(--ease);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
 }
 
 .detail-btn-learn {
@@ -1071,6 +1086,8 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   border-bottom: 1px solid var(--border-0);
   cursor: pointer;
   transition: background var(--fast);
+  width: 100%;
+  text-align: left;
 }
 
 .pb-item:hover { background: var(--surface-0); margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: var(--radius); }
@@ -1099,6 +1116,17 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   font-size: 12px;
   color: var(--t-2);
   line-height: 1.5;
+}
+
+/* ==========================================
+   REDUCED MOTION
+   ========================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ==========================================
