@@ -404,29 +404,58 @@ function renderGrid() {
   grid.style.display = '';
   empty.style.display = 'none';
 
-  grid.innerHTML = list.map((b, i) => {
+  grid.replaceChildren();
+  list.forEach((b, i) => {
     const isLearned = learned.includes(b.name);
     const category = getCategory(b);
-    return `
-    <button type="button" class="bias-card ${isLearned ? 'learned' : ''}" data-cat="${escapeHTML(category)}" data-name="${escapeHTML(b.name)}" style="animation-delay:${Math.min(i * 0.025, 0.6)}s">
-      <div class="card-emoji">${escapeHTML(b.emoji)}</div>
-      <div class="card-info">
-        <div class="card-name-row">
-          <span class="card-name">${escapeHTML(b.name)}</span>
-          ${b.star ? '<span class="card-star">⭐</span>' : ''}
-        </div>
-        <p class="card-oneliner">${escapeHTML(b.oneliner)}</p>
-        <span class="card-tag">${escapeHTML(category)}</span>
-      </div>
-    </button>`;
-  }).join('');
 
-  grid.querySelectorAll('.bias-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const name = card.dataset.name;
-      const bias = getBiasByName(name);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bias-card' + (isLearned ? ' learned' : '');
+    btn.dataset.cat = category;
+    btn.dataset.name = b.name;
+    btn.style.animationDelay = Math.min(i * 0.025, 0.6) + 's';
+
+    const emojiDiv = document.createElement('div');
+    emojiDiv.className = 'card-emoji';
+    emojiDiv.textContent = b.emoji;
+    btn.appendChild(emojiDiv);
+
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'card-info';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'card-name-row';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'card-name';
+    nameSpan.textContent = b.name;
+    nameRow.appendChild(nameSpan);
+    if (b.star) {
+      const starSpan = document.createElement('span');
+      starSpan.className = 'card-star';
+      starSpan.textContent = '⭐';
+      nameRow.appendChild(starSpan);
+    }
+    infoDiv.appendChild(nameRow);
+
+    const oneliner = document.createElement('p');
+    oneliner.className = 'card-oneliner';
+    oneliner.textContent = b.oneliner;
+    infoDiv.appendChild(oneliner);
+
+    const tag = document.createElement('span');
+    tag.className = 'card-tag';
+    tag.textContent = category;
+    infoDiv.appendChild(tag);
+
+    btn.appendChild(infoDiv);
+
+    btn.addEventListener('click', () => {
+      const bias = getBiasByName(b.name);
       if (bias) openDetail(bias);
     });
+
+    grid.appendChild(btn);
   });
 
   const titles = {
@@ -476,61 +505,131 @@ function openDetail(bias) {
   const note = notes[bias.name] || '';
 
   const content = document.getElementById('detailContent');
-  content.innerHTML = `
-    <div class="detail-stage-bar" style="background:${stage.color}"></div>
-    <div class="detail-emoji">${escapeHTML(bias.emoji)}</div>
-    <h2 class="detail-name">${escapeHTML(bias.name)}</h2>
+  content.replaceChildren();
 
-    <div class="detail-section">
-      <div class="detail-section-title">What It Means</div>
-      <p class="detail-text">${escapeHTML(bias.oneliner)}</p>
-    </div>
+  // Stage color bar
+  const stageBar = document.createElement('div');
+  stageBar.className = 'detail-stage-bar';
+  stageBar.style.background = stage.color;
+  content.appendChild(stageBar);
 
-    <div class="detail-section">
-      <div class="detail-section-title">Daily Cheat Code</div>
-      <div class="detail-cheat">${escapeHTML(bias.cheat)}</div>
-    </div>
+  // Emoji
+  const emojiEl = document.createElement('div');
+  emojiEl.className = 'detail-emoji';
+  emojiEl.textContent = bias.emoji;
+  content.appendChild(emojiEl);
 
-    <div class="detail-section">
-      <div class="detail-section-title">Stage: ${escapeHTML(stage.label)} — ${escapeHTML(stage.question)}</div>
-      <div class="detail-stage-card">
-        <p class="detail-stage-desc">${escapeHTML(stage.desc)}</p>
-      </div>
-    </div>
+  // Name
+  const nameEl = document.createElement('h2');
+  nameEl.className = 'detail-name';
+  nameEl.textContent = bias.name;
+  content.appendChild(nameEl);
 
-    <div class="detail-section">
-      <div class="detail-section-title">Related Biases</div>
-      <div class="detail-related-list">
-        ${related.map(r => `<button class="detail-related-item" data-related="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button>`).join('')}
-      </div>
-    </div>
+  // "What It Means" section
+  const meaningSection = document.createElement('div');
+  meaningSection.className = 'detail-section';
+  const meaningTitle = document.createElement('div');
+  meaningTitle.className = 'detail-section-title';
+  meaningTitle.textContent = 'What It Means';
+  meaningSection.appendChild(meaningTitle);
+  const meaningText = document.createElement('p');
+  meaningText.className = 'detail-text';
+  meaningText.textContent = bias.oneliner;
+  meaningSection.appendChild(meaningText);
+  content.appendChild(meaningSection);
 
-    <div class="detail-section">
-      <div class="detail-section-title">Personal Note</div>
-      <textarea class="detail-note" id="detailNote" name="note" aria-label="Personal note" placeholder="Write one real example from your own life or work…"></textarea>
-      <div class="detail-note-meta">Notes are stored locally on this browser.</div>
-    </div>
+  // "Daily Cheat Code" section
+  const cheatSection = document.createElement('div');
+  cheatSection.className = 'detail-section';
+  const cheatTitle = document.createElement('div');
+  cheatTitle.className = 'detail-section-title';
+  cheatTitle.textContent = 'Daily Cheat Code';
+  cheatSection.appendChild(cheatTitle);
+  const cheatBox = document.createElement('div');
+  cheatBox.className = 'detail-cheat';
+  cheatBox.textContent = bias.cheat;
+  cheatSection.appendChild(cheatBox);
+  content.appendChild(cheatSection);
 
-    <div class="detail-actions">
-      <button class="detail-btn detail-btn-learn ${isLearned ? 'is-learned' : ''}" id="learnBtn">
-        ${isLearned ? '✓ Marked as Learned' : '✓ Mark as Learned'}
-      </button>
-      <button class="detail-btn detail-btn-next" id="nextBtn">
-        Next Bias →
-      </button>
-    </div>
-  `;
+  // "Stage" section
+  const stageSection = document.createElement('div');
+  stageSection.className = 'detail-section';
+  const stageTitle = document.createElement('div');
+  stageTitle.className = 'detail-section-title';
+  stageTitle.textContent = `Stage: ${stage.label} \u2014 ${stage.question}`;
+  stageSection.appendChild(stageTitle);
+  const stageCard = document.createElement('div');
+  stageCard.className = 'detail-stage-card';
+  const stageDesc = document.createElement('p');
+  stageDesc.className = 'detail-stage-desc';
+  stageDesc.textContent = stage.desc;
+  stageCard.appendChild(stageDesc);
+  stageSection.appendChild(stageCard);
+  content.appendChild(stageSection);
 
-  const noteEl = document.getElementById('detailNote');
+  // "Related Biases" section
+  const relatedSection = document.createElement('div');
+  relatedSection.className = 'detail-section';
+  const relatedTitle = document.createElement('div');
+  relatedTitle.className = 'detail-section-title';
+  relatedTitle.textContent = 'Related Biases';
+  relatedSection.appendChild(relatedTitle);
+  const relatedList = document.createElement('div');
+  relatedList.className = 'detail-related-list';
+  related.forEach(r => {
+    const relBtn = document.createElement('button');
+    relBtn.className = 'detail-related-item';
+    relBtn.dataset.related = r.name;
+    relBtn.textContent = r.name;
+    relBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const next = getBiasByName(r.name);
+      if (next) openDetail(next);
+    });
+    relatedList.appendChild(relBtn);
+  });
+  relatedSection.appendChild(relatedList);
+  content.appendChild(relatedSection);
+
+  // "Personal Note" section
+  const noteSection = document.createElement('div');
+  noteSection.className = 'detail-section';
+  const noteTitle = document.createElement('div');
+  noteTitle.className = 'detail-section-title';
+  noteTitle.textContent = 'Personal Note';
+  noteSection.appendChild(noteTitle);
+  const noteEl = document.createElement('textarea');
+  noteEl.className = 'detail-note';
+  noteEl.id = 'detailNote';
+  noteEl.name = 'note';
+  noteEl.setAttribute('aria-label', 'Personal note');
+  noteEl.placeholder = 'Write one real example from your own life or work\u2026';
   noteEl.value = note;
+  noteSection.appendChild(noteEl);
+  const noteMeta = document.createElement('div');
+  noteMeta.className = 'detail-note-meta';
+  noteMeta.textContent = 'Notes are stored locally on this browser.';
+  noteSection.appendChild(noteMeta);
+  content.appendChild(noteSection);
 
-  document.getElementById('learnBtn').addEventListener('click', (e) => {
+  // Action buttons
+  const actions = document.createElement('div');
+  actions.className = 'detail-actions';
+  const learnBtn = document.createElement('button');
+  learnBtn.className = 'detail-btn detail-btn-learn' + (isLearned ? ' is-learned' : '');
+  learnBtn.id = 'learnBtn';
+  learnBtn.textContent = isLearned ? '\u2713 Marked as Learned' : '\u2713 Mark as Learned';
+  learnBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleLearned(bias.name);
     syncURL();
   });
-
-  document.getElementById('nextBtn').addEventListener('click', (e) => {
+  actions.appendChild(learnBtn);
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'detail-btn detail-btn-next';
+  nextBtn.id = 'nextBtn';
+  nextBtn.textContent = 'Next Bias \u2192';
+  nextBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     const currentList = getFiltered();
     if (!currentList.length) return;
@@ -538,14 +637,8 @@ function openDetail(bias) {
     const nextBias = currentList[(idx + 1 + currentList.length) % currentList.length];
     openDetail(nextBias);
   });
-
-  content.querySelectorAll('.detail-related-item').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const next = getBiasByName(btn.dataset.related);
-      if (next) openDetail(next);
-    });
-  });
+  actions.appendChild(nextBtn);
+  content.appendChild(actions);
 
   noteEl.addEventListener('input', () => {
     notesDirty = true;
@@ -621,37 +714,58 @@ function renderCmdResults(query) {
     : getCmdSuggestions();
 
   if (!currentCmdResults.length) {
-    el.innerHTML = q
-      ? `<div class="cmd-empty">No results for "${escapeHTML(query)}"</div>`
-      : '<div class="cmd-empty">No recent activity yet. Try searching by bias name.</div>';
+    el.replaceChildren();
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'cmd-empty';
+    emptyDiv.textContent = q
+      ? `No results for "${query}"`
+      : 'No recent activity yet. Try searching by bias name.';
+    el.appendChild(emptyDiv);
     cmdSelectedIndex = -1;
     return;
   }
 
-  el.innerHTML = currentCmdResults.map(b => `
-    <button type="button" class="cmd-item" data-name="${escapeHTML(b.name)}">
-      <span class="cmd-item-emoji">${escapeHTML(b.emoji)}</span>
-      <span class="cmd-item-name">${escapeHTML(b.name)}</span>
-      <span class="cmd-item-desc">— ${escapeHTML(b.oneliner)}</span>
-      <span class="cmd-item-cat">${escapeHTML(getCategory(b))}</span>
-    </button>
-  `).join('');
+  el.replaceChildren();
+  currentCmdResults.forEach((b, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cmd-item';
+    btn.dataset.name = b.name;
+
+    const emoji = document.createElement('span');
+    emoji.className = 'cmd-item-emoji';
+    emoji.textContent = b.emoji;
+    btn.appendChild(emoji);
+
+    const name = document.createElement('span');
+    name.className = 'cmd-item-name';
+    name.textContent = b.name;
+    btn.appendChild(name);
+
+    const desc = document.createElement('span');
+    desc.className = 'cmd-item-desc';
+    desc.textContent = `\u2014 ${b.oneliner}`;
+    btn.appendChild(desc);
+
+    const cat = document.createElement('span');
+    cat.className = 'cmd-item-cat';
+    cat.textContent = getCategory(b);
+    btn.appendChild(cat);
+
+    btn.addEventListener('mouseenter', () => {
+      activateCmdSelection(i);
+    });
+
+    btn.addEventListener('click', () => {
+      closeCmd();
+      openDetail(b);
+    });
+
+    el.appendChild(btn);
+  });
 
   cmdSelectedIndex = 0;
   activateCmdSelection(cmdSelectedIndex);
-
-  el.querySelectorAll('.cmd-item').forEach(item => {
-    item.addEventListener('mouseenter', () => {
-      const idx = currentCmdResults.findIndex(b => b.name === item.dataset.name);
-      activateCmdSelection(idx);
-    });
-
-    item.addEventListener('click', () => {
-      const bias = getBiasByName(item.dataset.name);
-      closeCmd();
-      if (bias) openDetail(bias);
-    });
-  });
 }
 
 /* ==========================================
@@ -671,15 +785,32 @@ function renderMasteryView() {
   document.getElementById('masteryRetention').textContent = `${getRetentionPct()}%`;
 
   const dailyEl = document.getElementById('dailyBiasCard');
-  dailyEl.innerHTML = `
-    <div class="daily-bias-title">Daily Bias</div>
-    <div class="daily-bias-name">${escapeHTML(daily.emoji)} ${escapeHTML(daily.name)}</div>
-    <p class="daily-bias-copy">${escapeHTML(daily.oneliner)}</p>
-    <div class="quiz-controls">
-      <button class="detail-btn detail-btn-next" id="openDailyBiasBtn">Open Detail</button>
-    </div>
-  `;
-  document.getElementById('openDailyBiasBtn').addEventListener('click', () => openDetail(daily));
+  dailyEl.replaceChildren();
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'daily-bias-title';
+  titleEl.textContent = 'Daily Bias';
+  dailyEl.appendChild(titleEl);
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'daily-bias-name';
+  nameEl.textContent = `${daily.emoji} ${daily.name}`;
+  dailyEl.appendChild(nameEl);
+
+  const copyEl = document.createElement('p');
+  copyEl.className = 'daily-bias-copy';
+  copyEl.textContent = daily.oneliner;
+  dailyEl.appendChild(copyEl);
+
+  const controls = document.createElement('div');
+  controls.className = 'quiz-controls';
+  const openBtn = document.createElement('button');
+  openBtn.className = 'detail-btn detail-btn-next';
+  openBtn.id = 'openDailyBiasBtn';
+  openBtn.textContent = 'Open Detail';
+  openBtn.addEventListener('click', () => openDetail(daily));
+  controls.appendChild(openBtn);
+  dailyEl.appendChild(controls);
 }
 
 function startQuiz(mode) {
@@ -719,7 +850,7 @@ function renderQuizCard() {
   document.getElementById('quizMeta').textContent = `${quizState.mode === 'due' ? 'Due Review' : 'Random Drill'} • ${quizState.index + 1}/${quizState.queue.length}`;
   document.getElementById('quizQuestion').textContent = card ? `${card.emoji} ${card.name}` : 'Done';
   answer.style.display = 'none';
-  answer.innerHTML = '';
+  answer.replaceChildren();
   grade.style.display = 'none';
 }
 
@@ -728,10 +859,22 @@ function revealQuizAnswer() {
   if (!card) return;
   const answer = document.getElementById('quizAnswer');
   answer.style.display = 'block';
-  answer.innerHTML = `
-    <p><strong>What it means:</strong> ${escapeHTML(card.oneliner)}</p>
-    <p><strong>Cheat code:</strong> ${escapeHTML(card.cheat)}</p>
-  `;
+  answer.replaceChildren();
+
+  const p1 = document.createElement('p');
+  const strong1 = document.createElement('strong');
+  strong1.textContent = 'What it means: ';
+  p1.appendChild(strong1);
+  p1.appendChild(document.createTextNode(card.oneliner));
+  answer.appendChild(p1);
+
+  const p2 = document.createElement('p');
+  const strong2 = document.createElement('strong');
+  strong2.textContent = 'Cheat code: ';
+  p2.appendChild(strong2);
+  p2.appendChild(document.createTextNode(card.cheat));
+  answer.appendChild(p2);
+
   document.getElementById('quizGrade').style.display = 'flex';
 }
 
@@ -841,33 +984,64 @@ function renderPlaybook() {
   const tabsEl = document.getElementById('playbookTabs');
   const panelsEl = document.getElementById('playbookPanels');
 
-  tabsEl.innerHTML = PLAYBOOK.map((p, i) => `
-    <button class="pb-tab ${i === 0 ? 'active' : ''}" data-key="${p.key}">
-      <span class="pb-tab-icon">${p.icon}</span>
-      ${p.label}
-    </button>
-  `).join('');
+  tabsEl.replaceChildren();
+  panelsEl.replaceChildren();
 
-  panelsEl.innerHTML = PLAYBOOK.map((p, i) => `
-    <div class="pb-panel ${i === 0 ? 'active' : ''}" data-key="${p.key}">
-      <div class="pb-panel-header">
-        <span class="pb-panel-icon">${p.icon}</span>
-        <div class="pb-panel-info">
-          <h3>${p.label}</h3>
-          <p>${p.desc}</p>
-        </div>
-      </div>
-      ${p.items.map(item => `
-        <button type="button" class="pb-item" data-principle="${item.principle}">
-          <span class="pb-principle">
-            <span class="pb-principle-dot"></span>
-            ${item.principle}
-          </span>
-          <span class="pb-action">${item.action}</span>
-        </button>
-      `).join('')}
-    </div>
-  `).join('');
+  PLAYBOOK.forEach((p, i) => {
+    // Tab
+    const tab = document.createElement('button');
+    tab.className = 'pb-tab' + (i === 0 ? ' active' : '');
+    tab.dataset.key = p.key;
+    const tabIcon = document.createElement('span');
+    tabIcon.className = 'pb-tab-icon';
+    tabIcon.textContent = p.icon;
+    tab.appendChild(tabIcon);
+    tab.appendChild(document.createTextNode(' ' + p.label));
+    tabsEl.appendChild(tab);
+
+    // Panel
+    const panel = document.createElement('div');
+    panel.className = 'pb-panel' + (i === 0 ? ' active' : '');
+    panel.dataset.key = p.key;
+
+    const header = document.createElement('div');
+    header.className = 'pb-panel-header';
+    const panelIcon = document.createElement('span');
+    panelIcon.className = 'pb-panel-icon';
+    panelIcon.textContent = p.icon;
+    header.appendChild(panelIcon);
+    const panelInfo = document.createElement('div');
+    panelInfo.className = 'pb-panel-info';
+    const h3 = document.createElement('h3');
+    h3.textContent = p.label;
+    panelInfo.appendChild(h3);
+    const descP = document.createElement('p');
+    descP.textContent = p.desc;
+    panelInfo.appendChild(descP);
+    header.appendChild(panelInfo);
+    panel.appendChild(header);
+
+    p.items.forEach(item => {
+      const itemBtn = document.createElement('button');
+      itemBtn.type = 'button';
+      itemBtn.className = 'pb-item';
+      itemBtn.dataset.principle = item.principle;
+      const principle = document.createElement('span');
+      principle.className = 'pb-principle';
+      const dot = document.createElement('span');
+      dot.className = 'pb-principle-dot';
+      principle.appendChild(dot);
+      principle.appendChild(document.createTextNode(' ' + item.principle));
+      itemBtn.appendChild(principle);
+      const action = document.createElement('span');
+      action.className = 'pb-action';
+      action.textContent = item.action;
+      itemBtn.appendChild(action);
+      panel.appendChild(itemBtn);
+    });
+
+    panelsEl.appendChild(panel);
+  });
 
   // Tab switching
   tabsEl.addEventListener('click', (e) => {
