@@ -602,7 +602,7 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
   font-family: var(--font);
   color: var(--t-1);
 }
-.cmd-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-border); border-radius: 3px; }
+.cmd-input:focus-visible { outline: none; }
 
 .cmd-input::placeholder { color: var(--t-4); }
 
