@@ -334,6 +334,8 @@ function toggleLearned(name) {
   } else {
     learned.push(name);
     ensureReviewSeed(name);
+    triggerConfetti();
+    playSuccessSound();
   }
   saveLearned();
   saveReviewState();
@@ -912,6 +914,165 @@ function showMasteryView() {
 
 function hideMasteryView() {
   document.getElementById('masteryView').style.display = 'none';
+}
+
+/* ==========================================
+   CONFETTI DELIGHTER (Zero-Dependency Canvas)
+   ========================================== */
+function triggerConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.style.position = 'fixed';
+  canvas.style.top = '0';
+  canvas.style.left = '0';
+  canvas.style.width = '100vw';
+  canvas.style.height = '100vh';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '9999';
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const isMobile = window.innerWidth < 768;
+
+  let width = canvas.width = window.innerWidth * dpr;
+  let height = canvas.height = window.innerHeight * dpr;
+  
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+
+  window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth * dpr;
+    height = canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  });
+
+  // Confetti colors map exactly to the BiasMastery category color palette!
+  const colors = ['#e5726a', '#4cc9c0', '#d4b85c', '#6bc4b3', '#a78bfa', '#f472b6', '#3b82f6'];
+  const particles = [];
+  
+  // Optimize particle count for mobile screens (fewer particles for high FPS, no lag)
+  const particleCount = isMobile ? 65 : 135;
+
+  // Emit dynamic confetti streams from bottom corners shooting inwards
+  for (let i = 0; i < particleCount; i++) {
+    const isLeft = i < particleCount / 2;
+    
+    // Scale particle sizes using DPR. Sized between 12px and 22px in CSS coordinates.
+    const baseSize = Math.random() * 10 + 12;
+    const size = baseSize * dpr;
+
+    // Adjust velocities for screen size. Mobile requires less width-range to reach the center!
+    const vxSpeed = isMobile ? (Math.random() * 7 + 5) : (Math.random() * 14 + 8);
+    const vySpeed = isMobile ? (Math.random() * 12 + 10) : (Math.random() * 18 + 14);
+
+    particles.push({
+      x: isLeft ? 0 : width,
+      y: height * 0.85,
+      vx: isLeft ? vxSpeed * dpr : -vxSpeed * dpr,
+      vy: -vySpeed * dpr,
+      size: size,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 10,
+      opacity: 1,
+      gravity: (isMobile ? 0.35 : 0.45) * dpr,
+      friction: 0.97,
+      shape: Math.random() > 0.45 ? 'rect' : 'circle'
+    });
+  }
+
+  let active = true;
+  function update() {
+    if (!active) return;
+    ctx.clearRect(0, 0, width, height);
+
+    let living = 0;
+    particles.forEach(p => {
+      p.vx *= p.friction;
+      p.vy += p.gravity;
+      p.vy *= p.friction;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.rotationSpeed;
+      
+      // Smoothly fade out as they descend or age
+      p.opacity -= isMobile ? 0.012 : 0.007;
+
+      if (p.opacity > 0) {
+        living++;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation * Math.PI / 180);
+        ctx.globalAlpha = p.opacity;
+        ctx.fillStyle = p.color;
+        
+        if (p.shape === 'rect') {
+          // Draw standard rectangular ribbon
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 1.5);
+        } else {
+          // Draw circular coin particle
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    });
+
+    if (living > 0) {
+      requestAnimationFrame(update);
+    } else {
+      active = false;
+      canvas.remove();
+    }
+  }
+
+  requestAnimationFrame(update);
+}
+
+/* ==========================================
+   SUCCESS CHIME SYNTHESIZER (Zero-Dependency Web Audio API)
+   ========================================= */
+function playSuccessSound() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    
+    const now = ctx.currentTime;
+    
+    // Helper function to synthesize a pure crystal bell note using sine waves
+    function playNote(freq, startTime, duration, volume) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine'; // pure, clean whistle-like bell tone
+      osc.frequency.setValueAtTime(freq, startTime);
+      
+      // Bell envelope: instant peak volume, followed by a beautiful, slow exponential decay
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(volume, startTime + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    }
+    
+    // Play a highly pleasant, positive rising Major arpeggio arcing upwards (C5 -> E5 -> G5)
+    // C5 = 523.25 Hz (warm root note)
+    // E5 = 659.25 Hz (sweet major third)
+    // G5 = 783.99 Hz (triumphant perfect fifth)
+    playNote(523.25, now, 0.45, 0.06);        // soft baseline
+    playNote(659.25, now + 0.07, 0.48, 0.06); // elegant rising arpeggio step
+    playNote(783.99, now + 0.14, 0.55, 0.08); // bright final peak note
+    
+  } catch (err) {
+    console.warn('Web Audio success chime failed:', err);
+  }
 }
 
 /* ==========================================
