@@ -37,6 +37,16 @@
     </div>
   </div>
 
+  <!-- Progress Modal -->
+  <div class="progress-overlay" id="progressOverlay" role="presentation">
+    <div class="progress-modal" id="progressModal" role="dialog" aria-modal="true" aria-labelledby="progressModalTitle">
+      <button class="progress-modal-close" id="progressModalClose" aria-label="Close progress details">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+      <div class="progress-modal-content" id="progressModalContent"></div>
+    </div>
+  </div>
+
   <!-- App Shell -->
   <div class="app">
 
@@ -58,14 +68,18 @@
 
       <!-- Progress -->
       <div class="progress-section">
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-track">
+        <button type="button" class="progress-bar-wrap" id="progressTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="progressModal" title="View mastery progress">
+          <div class="progress-level-row">
+            <span class="progress-level-badge" id="progressLevel">Novice</span>
+            <span class="progress-level-hint" id="progressNext">Open details</span>
+          </div>
+          <div class="progress-bar-track" aria-hidden="true">
             <div class="progress-bar-fill" id="progressBar"></div>
           </div>
           <div class="progress-meta">
-            <span id="progressNumber">0</span> / 106 learned
+            <span id="progressNumber">0</span> / <span id="progressTotal">106</span> learned
           </div>
-        </div>
+        </button>
       </div>
 
       <!-- Nav -->
@@ -88,22 +102,30 @@
 
         <div class="nav-group-label">Decision Stages</div>
         <button class="nav-item" data-filter="filter">
-          <span class="nav-stage-dot" style="--dot:#e5726a"></span>
+          <span class="nav-icon nav-stage-icon" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          </span>
           Filter
           <span class="nav-count" id="countFilter">29</span>
         </button>
         <button class="nav-item" data-filter="meaning">
-          <span class="nav-stage-dot" style="--dot:#4cc9c0"></span>
+          <span class="nav-icon nav-stage-icon" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+          </span>
           Meaning
           <span class="nav-count" id="countMeaning">33</span>
         </button>
         <button class="nav-item" data-filter="time">
-          <span class="nav-stage-dot" style="--dot:#d4b85c"></span>
+          <span class="nav-icon nav-stage-icon" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </span>
           Time
           <span class="nav-count" id="countTime">28</span>
         </button>
         <button class="nav-item" data-filter="memory">
-          <span class="nav-stage-dot" style="--dot:#6bc4b3"></span>
+          <span class="nav-icon nav-stage-icon" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </span>
           Memory
           <span class="nav-count" id="countMemory">17</span>
         </button>

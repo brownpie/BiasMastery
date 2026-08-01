@@ -121,11 +121,101 @@ const BIASES = [
    STAGE META
    ========================================== */
 const STAGES = {
-  filter:  { label:"Filter", color:"var(--c-filter)", question:"What do I notice?", desc:"The brain aggressively filters information, keeping only what seems relevant. Users miss important things constantly." },
-  meaning: { label:"Meaning", color:"var(--c-meaning)", question:"What does it mean?", desc:"The brain fills gaps with assumptions, social cues, and stories to decide trust and value." },
-  time:    { label:"Time", color:"var(--c-time)", question:"Should I act now?", desc:"Even when users understand, they must decide to act now, later, or never. Effort, loss, and momentum dominate." },
-  memory:  { label:"Memory", color:"var(--c-memory)", question:"What will I remember?", desc:"The brain selectively stores fragments. What’s remembered shapes whether users return or forget you." },
+  filter:  {
+    label:"Filter",
+    color:"var(--c-filter)",
+    question:"What do I notice?",
+    desc:"The brain aggressively filters information, keeping only what seems relevant. Users miss important things constantly.",
+    icon:'<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+  },
+  meaning: {
+    label:"Meaning",
+    color:"var(--c-meaning)",
+    question:"What does it mean?",
+    desc:"The brain fills gaps with assumptions, social cues, and stories to decide trust and value.",
+    icon:'<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>',
+  },
+  time: {
+    label:"Time",
+    color:"var(--c-time)",
+    question:"Should I act now?",
+    desc:"Even when users understand, they must decide to act now, later, or never. Effort, loss, and momentum dominate.",
+    icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  },
+  memory: {
+    label:"Memory",
+    color:"var(--c-memory)",
+    question:"What will I remember?",
+    desc:"The brain selectively stores fragments. What’s remembered shapes whether users return or forget you.",
+    icon:'<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  },
 };
+
+function createStageIcon(stageKey, size = 14) {
+  const stage = STAGES[stageKey];
+  const wrap = document.createElement('span');
+  wrap.className = 'stage-icon';
+  wrap.setAttribute('aria-hidden', 'true');
+  if (stage?.color) wrap.style.color = stage.color;
+  wrap.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${stage?.icon || ''}</svg>`;
+  return wrap;
+}
+
+/* ==========================================
+   MASTERY LEVELS
+   ========================================== */
+const LEVELS = [
+  { id: 'novice',        name: 'Novice',        emoji: '🌱', min: 0,   max: 19,  blurb: 'Getting oriented with the core ideas.' },
+  { id: 'basic',         name: 'Basic',         emoji: '📘', min: 20,  max: 39,  blurb: 'Building a solid foundation of biases.' },
+  { id: 'intermediate',  name: 'Intermediate',  emoji: '🧭', min: 40,  max: 59,  blurb: 'Connecting patterns across decision stages.' },
+  { id: 'advanced',      name: 'Advanced',      emoji: '⚡', min: 60,  max: 79,  blurb: 'Applying principles with real confidence.' },
+  { id: 'pro',           name: 'Pro',           emoji: '🎯', min: 80,  max: 99,  blurb: 'Near-complete coverage of the catalog.' },
+  { id: 'master',        name: 'Master',        emoji: '🏆', min: 100, max: 106, blurb: 'Full mastery of the bias library.' },
+];
+
+function getLevelForCount(count) {
+  const total = BIASES.length;
+  const n = Math.max(0, Math.min(count, total));
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (n >= LEVELS[i].min) return LEVELS[i];
+  }
+  return LEVELS[0];
+}
+
+function getNextLevel(level) {
+  const idx = LEVELS.findIndex(l => l.id === level.id);
+  return idx >= 0 && idx < LEVELS.length - 1 ? LEVELS[idx + 1] : null;
+}
+
+function getLevelProgress(count = learned.length) {
+  const total = BIASES.length;
+  const safeCount = Math.max(0, Math.min(count, total));
+  const current = getLevelForCount(safeCount);
+  const next = getNextLevel(current);
+  const tierStart = current.min;
+  const tierEnd = next ? next.min : total;
+  const tierSize = Math.max(1, tierEnd - tierStart);
+  const inTier = Math.max(0, Math.min(safeCount - tierStart, tierSize));
+  const remaining = next ? Math.max(0, next.min - safeCount) : 0;
+  const pctToNext = next ? Math.round((inTier / tierSize) * 100) : 100;
+  const overallPct = total ? Math.round((safeCount / total) * 100) : 0;
+  return { current, next, inTier, tierSize, remaining, pctToNext, overallPct, count: safeCount, total };
+}
+
+function getStageBreakdown() {
+  return Object.keys(STAGES).map(key => {
+    const items = BIASES.filter(b => getCategory(b) === key);
+    const learnedCount = items.filter(b => learned.includes(b.name)).length;
+    return {
+      key,
+      label: STAGES[key].label,
+      color: STAGES[key].color,
+      learned: learnedCount,
+      total: items.length,
+      pct: items.length ? Math.round((learnedCount / items.length) * 100) : 0,
+    };
+  });
+}
 
 /* ==========================================
    STATE
@@ -355,14 +445,257 @@ function toggleLearned(name) {
    PROGRESS
    ========================================== */
 function updateProgress() {
-  const total = BIASES.length;
-  const count = learned.length;
-  const pct = (count / total) * 100;
+  const progress = getLevelProgress();
+  const { current, next, remaining, overallPct, count, total } = progress;
+
   const bar = document.getElementById('progressBar');
-  if (bar) bar.style.width = `${pct}%`;
+  if (bar) bar.style.width = `${overallPct}%`;
+
   const countEl = document.getElementById('progressNumber');
   if (countEl) countEl.textContent = count;
-  announce(`Progress: ${count} of ${total} biases learned`);
+
+  const totalEl = document.getElementById('progressTotal');
+  if (totalEl) totalEl.textContent = total;
+
+  const levelEl = document.getElementById('progressLevel');
+  if (levelEl) levelEl.textContent = `${current.emoji} ${current.name}`;
+
+  const nextEl = document.getElementById('progressNext');
+  if (nextEl) {
+    nextEl.textContent = next
+      ? `${remaining} to ${next.name}`
+      : 'Max level';
+  }
+
+  const trigger = document.getElementById('progressTrigger');
+  if (trigger) {
+    trigger.setAttribute(
+      'aria-label',
+      `Mastery progress: ${current.name}. ${count} of ${total} learned. Open details`
+    );
+  }
+
+  if (document.getElementById('progressOverlay')?.classList.contains('open')) {
+    renderProgressModal();
+  }
+
+  announce(`Progress: ${count} of ${total} biases learned. Level ${current.name}`);
+}
+
+function renderProgressModal() {
+  const content = document.getElementById('progressModalContent');
+  if (!content) return;
+
+  const progress = getLevelProgress();
+  const { current, next, remaining, pctToNext, overallPct, count, total } = progress;
+  const stages = getStageBreakdown();
+
+  content.replaceChildren();
+
+  // Top row: current level + next level side by side
+  const top = document.createElement('div');
+  top.className = 'pm-top';
+
+  const header = document.createElement('div');
+  header.className = 'pm-header';
+
+  const kicker = document.createElement('div');
+  kicker.className = 'pm-kicker';
+  kicker.textContent = 'Mastery Progress';
+  header.appendChild(kicker);
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'pm-title-row';
+  const emoji = document.createElement('span');
+  emoji.className = 'pm-emoji';
+  emoji.textContent = current.emoji;
+  emoji.setAttribute('aria-hidden', 'true');
+  titleRow.appendChild(emoji);
+  const title = document.createElement('h2');
+  title.className = 'pm-title';
+  title.id = 'progressModalTitle';
+  title.textContent = current.name;
+  titleRow.appendChild(title);
+  header.appendChild(titleRow);
+
+  const subtitle = document.createElement('p');
+  subtitle.className = 'pm-subtitle';
+  subtitle.textContent = current.blurb;
+  header.appendChild(subtitle);
+
+  const stats = document.createElement('div');
+  stats.className = 'pm-stats';
+  const learnedStat = document.createElement('div');
+  learnedStat.className = 'pm-stat';
+  learnedStat.innerHTML = `<strong>${count}</strong> / ${total} learned`;
+  stats.appendChild(learnedStat);
+  const pctStat = document.createElement('div');
+  pctStat.className = 'pm-stat';
+  pctStat.innerHTML = `<strong>${overallPct}%</strong> complete`;
+  stats.appendChild(pctStat);
+  header.appendChild(stats);
+  top.appendChild(header);
+
+  const nextSection = document.createElement('div');
+  nextSection.className = 'pm-section pm-next-section';
+  const nextTitle = document.createElement('div');
+  nextTitle.className = 'pm-section-title';
+  nextTitle.textContent = next ? 'Next Level' : 'Status';
+  nextSection.appendChild(nextTitle);
+
+  const nextCard = document.createElement('div');
+  nextCard.className = 'pm-next-card';
+  const nextTop = document.createElement('div');
+  nextTop.className = 'pm-next-top';
+  const nextLabel = document.createElement('div');
+  nextLabel.className = 'pm-next-label';
+  nextLabel.textContent = next ? `${next.emoji} ${next.name}` : `${current.emoji} Master complete`;
+  nextTop.appendChild(nextLabel);
+  const nextMeta = document.createElement('div');
+  nextMeta.className = 'pm-next-meta';
+  nextMeta.textContent = next ? `${remaining} left · ${pctToNext}%` : '100%';
+  nextTop.appendChild(nextMeta);
+  nextCard.appendChild(nextTop);
+
+  const nextTrack = document.createElement('div');
+  nextTrack.className = 'pm-next-track';
+  const nextFill = document.createElement('div');
+  nextFill.className = 'pm-next-fill';
+  nextFill.style.width = `${pctToNext}%`;
+  nextTrack.appendChild(nextFill);
+  nextCard.appendChild(nextTrack);
+
+  const nextBlurb = document.createElement('p');
+  nextBlurb.className = 'pm-next-blurb';
+  nextBlurb.textContent = next
+    ? `Learn ${remaining} more bias${remaining === 1 ? '' : 'es'} to reach ${next.name}.`
+    : 'You’ve reached the top of the mastery ladder.';
+  nextCard.appendChild(nextBlurb);
+  nextSection.appendChild(nextCard);
+  top.appendChild(nextSection);
+  content.appendChild(top);
+
+  // Horizontal roadmap
+  const roadSection = document.createElement('div');
+  roadSection.className = 'pm-section';
+  const roadTitle = document.createElement('div');
+  roadTitle.className = 'pm-section-title';
+  roadTitle.textContent = 'Level Roadmap';
+  roadSection.appendChild(roadTitle);
+
+  const roadmap = document.createElement('div');
+  roadmap.className = 'pm-roadmap';
+  LEVELS.forEach(level => {
+    const isCurrent = level.id === current.id;
+    const isUnlocked = count >= level.min;
+    const isDone = !isCurrent && count > level.max;
+    const card = document.createElement('div');
+    card.className = 'pm-level'
+      + (isCurrent ? ' is-current' : '')
+      + (isDone ? ' is-done' : '')
+      + (!isUnlocked ? ' is-locked' : '');
+
+    const icon = document.createElement('div');
+    icon.className = 'pm-level-icon';
+    icon.textContent = level.emoji;
+    icon.setAttribute('aria-hidden', 'true');
+    card.appendChild(icon);
+
+    const main = document.createElement('div');
+    main.className = 'pm-level-main';
+    const name = document.createElement('div');
+    name.className = 'pm-level-name';
+    name.textContent = level.name;
+    main.appendChild(name);
+    const range = document.createElement('div');
+    range.className = 'pm-level-range';
+    const maxLabel = Math.min(level.max, total);
+    range.textContent = level.id === 'master'
+      ? `${level.min}–${total}`
+      : `${level.min}–${maxLabel}`;
+    main.appendChild(range);
+    card.appendChild(main);
+
+    const status = document.createElement('div');
+    status.className = 'pm-level-status';
+    if (isCurrent) status.textContent = 'Current';
+    else if (isDone) status.textContent = 'Done';
+    else status.textContent = 'Locked';
+    card.appendChild(status);
+
+    roadmap.appendChild(card);
+  });
+  roadSection.appendChild(roadmap);
+  content.appendChild(roadSection);
+
+  // Horizontal stage cards
+  const stageSection = document.createElement('div');
+  stageSection.className = 'pm-section';
+  const stageTitle = document.createElement('div');
+  stageTitle.className = 'pm-section-title';
+  stageTitle.textContent = 'By Decision Stage';
+  stageSection.appendChild(stageTitle);
+
+  const stageList = document.createElement('div');
+  stageList.className = 'pm-stage-list';
+  stages.forEach(stage => {
+    const card = document.createElement('div');
+    card.className = 'pm-stage-row';
+
+    const label = document.createElement('div');
+    label.className = 'pm-stage-label';
+    const icon = createStageIcon(stage.key, 14);
+    icon.classList.add('pm-stage-icon');
+    label.appendChild(icon);
+    const name = document.createElement('span');
+    name.className = 'pm-stage-name';
+    name.textContent = stage.label;
+    label.appendChild(name);
+    card.appendChild(label);
+
+    const track = document.createElement('div');
+    track.className = 'pm-stage-track';
+    const fill = document.createElement('div');
+    fill.className = 'pm-stage-fill';
+    fill.style.setProperty('--fill', stage.color);
+    fill.style.width = `${stage.pct}%`;
+    track.appendChild(fill);
+    card.appendChild(track);
+
+    const countEl = document.createElement('div');
+    countEl.className = 'pm-stage-count';
+    countEl.textContent = `${stage.learned}/${stage.total}`;
+    card.appendChild(countEl);
+
+    stageList.appendChild(card);
+  });
+  stageSection.appendChild(stageList);
+  content.appendChild(stageSection);
+}
+
+function openProgressModal() {
+  renderProgressModal();
+  const overlay = document.getElementById('progressOverlay');
+  const trigger = document.getElementById('progressTrigger');
+  overlay.classList.add('open');
+  if (trigger) trigger.setAttribute('aria-expanded', 'true');
+  document.body.style.overflow = 'hidden';
+  const closeBtn = document.getElementById('progressModalClose');
+  if (closeBtn) closeBtn.focus();
+}
+
+function closeProgressModal() {
+  const overlay = document.getElementById('progressOverlay');
+  if (!overlay.classList.contains('open')) return;
+  overlay.classList.remove('open');
+  const trigger = document.getElementById('progressTrigger');
+  if (trigger) {
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.focus();
+  }
+  if (!document.getElementById('detailOverlay').classList.contains('open')) {
+    document.body.style.overflow = '';
+  }
 }
 
 function updateCounts() {
@@ -1304,6 +1637,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Progress modal
+  document.getElementById('progressTrigger').addEventListener('click', openProgressModal);
+  document.getElementById('progressModalClose').addEventListener('click', closeProgressModal);
+  document.getElementById('progressOverlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('progressOverlay')) closeProgressModal();
+  });
+
   // Command palette
   document.getElementById('searchTrigger').addEventListener('click', openCmd);
   document.getElementById('cmdInput').addEventListener('input', (e) => {
@@ -1361,6 +1701,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Escape
     if (e.key === 'Escape') {
       if (document.getElementById('cmdOverlay').classList.contains('open')) closeCmd();
+      else if (document.getElementById('progressOverlay').classList.contains('open')) closeProgressModal();
       else if (document.getElementById('detailOverlay').classList.contains('open')) closeDetail();
     }
   });
