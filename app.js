@@ -1400,6 +1400,7 @@ function showPlaybookView() {
   document.getElementById('biasGrid').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('masteryView').style.display = 'none';
+  document.getElementById('detectorView').style.display = 'none';
   document.getElementById('playbookView').style.display = '';
   document.getElementById('topbarTitle').textContent = 'Practical Application';
   document.getElementById('topbarCount').textContent = '4 role-based playbooks';
@@ -1413,6 +1414,7 @@ function showMasteryView() {
   document.getElementById('biasGrid').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('playbookView').style.display = 'none';
+  document.getElementById('detectorView').style.display = 'none';
   document.getElementById('masteryView').style.display = '';
   document.getElementById('topbarTitle').textContent = 'Mastery Lab';
   document.getElementById('topbarCount').textContent = `${getDueBiases().length} due now`;
@@ -1583,6 +1585,211 @@ function playSuccessSound() {
 }
 
 /* ==========================================
+   LIVE BIAS DETECTOR
+   ========================================== */
+const BIAS_PATTERNS = [
+  { name:"Scarcity", patterns:["only [\\d,]+","limited","scarce","few left","running out","almost gone","exclusive","rare","while supplies last","don't miss","selling fast","last chance","hurry"] },
+  { name:"Social Proof", patterns:["join [\\d,]+\\+?","[\\d,]+\\+?\\s*(people|users|customers|teams|members|professionals|companies|founders|developers)","trusted by","as seen","used by","everyone","popular","trending","most popular","best-selling","rated","reviewed","recommended by","loved by"] },
+  { name:"Anchoring Bias", patterns:["was \\$[\\d,]+","originally \\$[\\d,]+","compare at","retail","marked down","regular price","value of","worth \\$[\\d,]+","save \\$[\\d,]+","normally \\$[\\d,]+"] },
+  { name:"Loss Aversion", patterns:["don't miss","don't lose","before it's gone","expires","you'll lose","risk losing","miss out","last chance","never again","running out","about to end","you're losing"] },
+  { name:"Framing", patterns:["save \\d+%","\\d+% off","free","no cost","zero risk","guaranteed","no obligation","risk-free","money-back","\\d+% success","\\d+% satisfaction","proven"] },
+  { name:"Bandwagon Effect", patterns:["everyone","millions","join [\\d,]+\\+?","trending","most popular","the world","best-selling","[\\d,]+\\+?\\s*(downloads|installs|signups|subscribers)","fastest growing","#1","number one"] },
+  { name:"Authority Bias", patterns:["expert","doctor","study shows","research","according to","professor","scientist","certified","award-winning","harvard","stanford","mit","phd","approved by","endorsed","clinical","vp at","ceo at","founder of","director at"] },
+  { name:"Reciprocity", patterns:["free","bonus","gift","complimentary","no charge","on us","we'll give","free trial","free shipping","included free","as a thank you","our treat"] },
+  { name:"Curiosity Gap", patterns:["you won't believe","the secret","discover","find out","what happened","the truth","revealed","shocking","surprising","unexpected","little-known","hidden","unlock"] },
+  { name:"Commitment & Consistency", patterns:["you already","since you","you've been","as a member","your history","based on your","you started","continue","keep going","don't stop now","you chose"] },
+  { name:"Sunk Cost Effect", patterns:["you've already","invested","you've spent","don't waste","all your progress","so far","you've built","don't throw away","your effort","months of","years of"] },
+  { name:"Decoy Effect", patterns:["most popular","recommended","best value","premium","basic","pro","enterprise","starter","compare plans","popular choice"] },
+  { name:"Default Bias", patterns:["pre-selected","default","auto-renew","automatically","already selected","pre-filled","opt-out","unless you","included by default"] },
+  { name:"Goal Gradient Effect", patterns:["almost there","\\d+% complete","nearly done","one step left","finish","you're close","\\d of \\d","so close","just one more","final step","last step"] },
+  { name:"Hick's Law", patterns:["just \\d options","choose from \\d","simple","one click","easy","quick","instant","straightforward","no hassle","effortless"] },
+  { name:"Peak-End Rule", patterns:["thank you","congratulations","welcome","you did it","success","well done","great job","amazing","we appreciate","wonderful"] },
+  { name:"Zeigarnik Effect", patterns:["continue","resume","pick up where","unfinished","incomplete","\\d+% complete","you started","don't forget to finish","your draft"] },
+  { name:"Storytelling Effect", patterns:["story","journey","imagine","picture this","once upon","meet \\w+","let me tell you","transformed"] },
+  { name:"Cognitive Load", patterns:["simple","easy","effortless","one-click","no hassle","streamlined","intuitive","straightforward","just \\d steps","all-in-one"] },
+  { name:"Variable Reward", patterns:["surprise","mystery","random","spin","lucky","chance to win","you could","bonus","special","unexpected","reward","prize"] },
+  { name:"Endowment Effect", patterns:["your (dashboard|account|profile|data|workspace|settings|progress)","personalized","customized","your \\w+ is ready","made for you","tailored"] },
+  { name:"Confirmation Bias", patterns:["you already know","as you suspected","confirms","just as you thought","you were right","validates"] },
+  { name:"Hyperbolic Discounting", patterns:["right now","today only","instant","immediately","get it now","same day","within minutes","don't wait","start today","no waiting"] },
+  { name:"IKEA Effect", patterns:["customize","build your","create your","design your","make it yours","personalize","configure","set up your"] },
+  { name:"Negativity Bias", patterns:["warning","danger","risk","threat","avoid","prevent","protect","don't let","stop","beware","harmful","toxic","never"] },
+  { name:"Reactance", patterns:["no obligation","cancel anytime","no commitment","you're free to","your choice","no pressure","no strings","optional"] },
+  { name:"Fresh Start Effect", patterns:["new year","fresh start","new beginning","start fresh","this year","resolution","new chapter","monday","this month","kick off","reboot"] },
+  { name:"Von Restorff Effect", patterns:["★","⭐","🔥","💥","NEW","HOT","BEST","!{2,}","ATTENTION","IMPORTANT","URGENT"] },
+  { name:"Aesthetic-Usability Effect", patterns:["beautiful","gorgeous","stunning","elegant","sleek","modern","premium","luxurious","polished","refined","crafted","designed"] },
+  { name:"Priming", patterns:["imagine","picture","think about","consider","envision","what if","visualize","feel","remember when"] },
+  { name:"Nudge", patterns:["recommended","suggested","most popular","best for you","our pick","top choice","we suggest","try this","you might like","you may also"] },
+  { name:"Noble Edge Effect", patterns:["sustainable","eco-friendly","give back","donate","charity","carbon neutral","social impact","ethical","fair trade","community","nonprofit","planet","green"] },
+  { name:"Singularity Effect", patterns:["meet \\w+","one child","one person","one family","her story","his story","their story","individual","single mother","this teacher"] },
+  { name:"Halo Effect", patterns:["award-winning","best-selling","#1 rated","top rated","featured in","as seen on","recognized","acclaimed","celebrated"] },
+  { name:"Cashless Effect", patterns:["one-click","instant checkout","auto-pay","stored payment","buy now pay later","subscription","monthly","just \\$\\d","from \\$\\d"] },
+  { name:"Spotlight Effect", patterns:["private","confidential","discreet","no one will know","between us","anonymous","your secret","secure"] },
+  { name:"Affect Heuristic", patterns:["feel good","love","hate","amazing","terrible","incredible","awful","fantastic","horrifying","thrilling","exciting","delightful"] },
+  { name:"Planning Fallacy", patterns:["just \\d minutes","only takes","quick","fast","in seconds","no time","instant setup","ready in"] },
+  { name:"Pareto Principle", patterns:["focus on what matters","the \\d+% that","high-impact","most important","key","critical","essential","core","primary"] },
+  { name:"Dunning-Kruger Effect", patterns:["anyone can","so easy","no experience needed","no skills required","even beginners","foolproof","guaranteed results","zero learning curve"] },
+  { name:"Labor Illusion", patterns:["searching \\d+","analyzing","processing","calculating","scanning","comparing","evaluating","finding the best","working on","crunching"] },
+  { name:"Serial Position Effect", patterns:["first","finally","most importantly","to start","in conclusion","lastly","number one","above all","last but not least"] },
+  { name:"Contrast", patterns:["unlike","compared to","versus","vs\\.?","but with us","while others","competitors","traditional","old way","new way"] },
+  { name:"Streisand Effect", patterns:["banned","censored","they don't want you to know","suppressed","controversial","forbidden","restricted","classified"] },
+  { name:"Barnum-Forer Effect", patterns:["people like you","based on your (profile|type|personality)","you tend to","you're the type","your unique","specially selected for you"] },
+  { name:"Weber's Law", patterns:["small change","incremental","gradual","step by step","little by little","over time","slowly","phase"] },
+  { name:"Cognitive Dissonance", patterns:["you deserve","you're worth","treat yourself","you've earned","why not","life is short","you only live"] },
+  { name:"Picture Superiority Effect", patterns:["see the results","watch","look at","visual","photo","screenshot","before and after","infographic","chart","graph","demo","video"] },
+  { name:"Progressive Disclosure", patterns:["learn more","see more","show more","read more","expand","details","advanced","explore","dive deeper","discover more","view all"] },
+  { name:"Empathy Gap", patterns:["we understand","we've been there","we know how","it's frustrating","you're not alone","we get it","we hear you"] },
+  { name:"Temptation Bundling", patterns:["bundle","package","combo","plus you get","and also","bonus","included with","together with","comes with","along with","and you'll also receive"] },
+];
+
+const DETECTOR_EXAMPLES = {
+  marketing: `Only 3 seats left! Join 50,000+ professionals who trust our platform.\n\nLimited-time offer ends Friday — save 40% today.\n\n"This tool transformed how our team works." — Sarah, VP at Google\n\nStart your free trial now. No credit card required. Cancel anytime.`,
+  pricing: `Basic: $9/month\nPro (Most Popular): $29/month — Best Value!\nEnterprise: $99/month\n\nAll plans include a 14-day free trial.\nYou're 80% done with setup — just pick your plan to finish.\nJoin 12,000+ companies already using our platform.\nWas $49/month, now just $29. Save $240/year!`,
+  news: `BREAKING: Scientists reveal the shocking truth about everyday habits.\nA new Harvard study confirms what experts have suspected for years.\nMillions are already making the switch — are you falling behind?\nDon't miss this urgent warning before it's too late.`,
+};
+
+function detectBiases(text) {
+  const lower = text.toLowerCase();
+  const results = [];
+
+  BIAS_PATTERNS.forEach(({ name, patterns }) => {
+    let totalHits = 0;
+    const matchedPhrases = [];
+
+    patterns.forEach(pattern => {
+      try {
+        const re = new RegExp(pattern, 'gi');
+        const matches = text.match(re);
+        if (matches) {
+          totalHits += matches.length;
+          matches.forEach(m => {
+            const clean = m.trim();
+            if (!matchedPhrases.includes(clean)) matchedPhrases.push(clean);
+          });
+        }
+      } catch (e) {
+        if (lower.includes(pattern.toLowerCase())) {
+          totalHits++;
+          matchedPhrases.push(pattern);
+        }
+      }
+    });
+
+    if (totalHits > 0) {
+      // Improved confidence scoring:
+      // Base confidence of 40% for any match, plus up to 45% based on number of unique matched phrases, plus up to 15% for total hits
+      const uniqueRatio = Math.min(matchedPhrases.length / 2, 1);
+      const hitBonus = Math.min(totalHits / 4, 1);
+      const confidence = Math.min(Math.round(40 + (uniqueRatio * 45) + (hitBonus * 14)), 99);
+      const biasData = getBiasByName(name);
+      if (biasData) {
+        results.push({
+          bias: biasData,
+          confidence,
+          hits: totalHits,
+          matchedPhrases: matchedPhrases.slice(0, 4),
+        });
+      }
+    }
+  });
+
+  results.sort((a, b) => b.confidence - a.confidence);
+  return results;
+}
+
+function renderDetectorResults(results) {
+  const el = document.getElementById('detectorResults');
+  el.replaceChildren();
+
+  if (!results.length) {
+    const empty = document.createElement('div');
+    empty.className = 'detector-empty';
+    empty.innerHTML = '<div class="detector-empty-icon">🔍</div><p>No cognitive biases detected in this text.</p><p class="detector-empty-hint">Try pasting marketing copy, a sales email, or a news headline.</p>';
+    el.appendChild(empty);
+    return;
+  }
+
+  // Summary bar
+  const summary = document.createElement('div');
+  summary.className = 'detector-summary';
+  summary.innerHTML = `<span class="detector-summary-count">${results.length}</span> bias${results.length !== 1 ? 'es' : ''} detected`;
+  el.appendChild(summary);
+
+  // Result cards
+  results.forEach((r, i) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'detector-card';
+    card.style.animationDelay = `${i * 0.06}s`;
+
+    const category = getCategory(r.bias);
+    const stage = STAGES[category];
+
+    // Confidence bar color
+    let confClass = 'conf-low';
+    if (r.confidence >= 60) confClass = 'conf-high';
+    else if (r.confidence >= 35) confClass = 'conf-mid';
+
+    card.innerHTML = `
+      <div class="detector-card-left">
+        <span class="detector-card-emoji">${r.bias.emoji}</span>
+        <div class="detector-card-info">
+          <div class="detector-card-name">${escapeHTML(r.bias.name)}</div>
+          <div class="detector-card-oneliner">${escapeHTML(r.bias.oneliner)}</div>
+          <div class="detector-card-matches">
+            ${r.matchedPhrases.map(p => `<span class="detector-match-tag">"${escapeHTML(p)}"</span>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="detector-card-right">
+        <div class="detector-conf ${confClass}">
+          <div class="detector-conf-bar">
+            <div class="detector-conf-fill" style="width:${r.confidence}%"></div>
+          </div>
+          <span class="detector-conf-pct">${r.confidence}%</span>
+        </div>
+        <span class="detector-card-tag" style="color:${stage?.color || 'var(--t-3)'}">${category}</span>
+      </div>
+    `;
+
+    card.addEventListener('click', () => openDetail(r.bias));
+    el.appendChild(card);
+  });
+}
+
+function runDetector() {
+  const text = document.getElementById('detectorInput').value.trim();
+  if (!text) return;
+
+  const scanEl = document.getElementById('detectorScanning');
+  const resultsEl = document.getElementById('detectorResults');
+
+  // Show scanning animation
+  scanEl.style.display = '';
+  resultsEl.replaceChildren();
+
+  // Fake delay for dramatic effect, then show results
+  setTimeout(() => {
+    scanEl.style.display = 'none';
+    const results = detectBiases(text);
+    renderDetectorResults(results);
+  }, 800);
+}
+
+function showDetectorView() {
+  document.getElementById('biasGrid').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('playbookView').style.display = 'none';
+  document.getElementById('masteryView').style.display = 'none';
+  document.getElementById('detectorView').style.display = '';
+  document.getElementById('topbarTitle').textContent = 'Live Bias Detector';
+  document.getElementById('topbarCount').textContent = 'Paste text to scan for biases';
+}
+
+function hideDetectorView() {
+  document.getElementById('detectorView').style.display = 'none';
+}
+
+/* ==========================================
    EVENT LISTENERS
    ========================================== */
 document.addEventListener('DOMContentLoaded', () => {
@@ -1600,14 +1807,22 @@ document.addEventListener('DOMContentLoaded', () => {
       item.classList.add('active');
       currentFilter = item.dataset.filter;
 
-      if (currentFilter === 'playbook') {
+      if (currentFilter === 'detector') {
+        hidePlaybookView();
+        hideMasteryView();
+        showDetectorView();
+      } else if (currentFilter === 'playbook') {
+        hideDetectorView();
+        hideMasteryView();
         showPlaybookView();
       } else if (currentFilter === 'mastery') {
         hidePlaybookView();
+        hideDetectorView();
         showMasteryView();
       } else {
         hidePlaybookView();
         hideMasteryView();
+        hideDetectorView();
         renderGrid();
       }
       // Close mobile sidebar
@@ -1681,6 +1896,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = e.target.closest('[data-score]');
     if (!btn) return;
     gradeQuizCard(btn.dataset.score);
+  });
+  // Bias Detector
+  document.getElementById('detectorAnalyzeBtn').addEventListener('click', runDetector);
+  document.getElementById('detectorInput').addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runDetector();
+  });
+  document.querySelectorAll('.detector-example-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.example;
+      const text = DETECTOR_EXAMPLES[key];
+      if (text) {
+        document.getElementById('detectorInput').value = text;
+        runDetector();
+      }
+    });
   });
 
   // Random bias (Variable Reward!)
